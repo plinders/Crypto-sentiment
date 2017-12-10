@@ -1,4 +1,9 @@
-import gdax, time
+import gdax, time, signal, os, csv
+from datetime import datetime
+
+def killme(signum, f):
+    wsClient.close()
+    os._exit(0)
 
 class myWebsocketClient(gdax.WebsocketClient):
     def on_open(self):
@@ -8,26 +13,28 @@ class myWebsocketClient(gdax.WebsocketClient):
         print("Lets count the messages!")
     def on_message(self, msg):
         self.message_count += 1
-        if 'price' in msg and 'type' in msg:
-            if msg["type"] == 'done':
-                #print ("Message type:", msg["type"],
-                #       "\t@ {:.3f}".format(float(msg["price"])))
-                with open("gdax-out.txt", "a") as g:
-                    writer = csv.writer(g)
-                    
-
-
-
+        try:
+            if msg["type"] == 'match':
                 self.price = float(msg["price"])
-                return(self.price)
+                self.time = datetime.strptime(msg["time"], '%Y-%m-%dT%H:%M:%S.%fZ')
+
+        except KeyError:
+            pass
+
     def on_close(self):
         print("-- Goodbye! --")
 
 wsClient = myWebsocketClient()
 wsClient.start()
-print(wsClient.url, wsClient.products)
-while (wsClient.message_count > 1):
-    #print ("\nmessage_count =", "{} \n".format(wsClient.message_count))
-    print(wsClient.price)
+signal.signal(signal.SIGINT, killme)
+#print(wsClient.url, wsClient.products)
+while True:
+    #if wsClient.message_count > 1:
+    try:
+        with open("gdax-out.txt", "a") as g:
+            writer = csv.writer(g)
+            writer.writerow([wsClient.time, wsClient.price])
+    except AttributeError:
+        print(f"No message yet")
+        pass
     time.sleep(1)
-#wsClient.close()
